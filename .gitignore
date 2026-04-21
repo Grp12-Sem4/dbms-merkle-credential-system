@@ -2,8 +2,12 @@
 .env
 .env.local
 
+# Generated demo/report outputs
+reports/
+
 # Virtual environments
 scripts/venv
+.venv/
 venv/
 env/
 

@@ -38,8 +38,12 @@ dbms-merkle-credential-system/
 |   |-- integrity_smoke_test.sql
 |   `-- integrity_demo.sql
 `-- scripts/
+    |-- DEMO_CHECKLIST.md
     |-- INTEGRITY_DEMO.md
+    |-- generate_integrity_report.py
+    |-- load_integrity_db.ps1
     |-- merkle_demo.py
+    |-- run_integrity_demo.ps1
     `-- requirements.txt
 ```
 
@@ -107,41 +111,60 @@ The view provides a frontend/demo-friendly per-student summary with:
 
 Run these commands from the repository root.
 
-### Full Smoke Test
+### PowerShell Setup Path
 
-For a clean MySQL instance where `credential_verifiability_system` does not
-already exist, the smoke test performs the schema load, sample-data load,
-Merkle refresh, procedure call, view query, and full integrity demo:
+Set the database connection environment variables:
 
 ```powershell
-mysql -u your_mysql_user -p < database/integrity_smoke_test.sql
+$env:DB_HOST = "localhost"
+$env:DB_PORT = "3306"
+$env:DB_NAME = "credential_verifiability_system"
+$env:DB_USER = "your_mysql_user"
+$env:DB_PASSWORD = "your_mysql_password"
 ```
 
-### Manual Step-By-Step Run
-
-1. Load the schema. `database/schema.sql` creates and selects
-   `credential_verifiability_system`:
+Load schema and sample data:
 
 ```powershell
+.\scripts\load_integrity_db.ps1
+```
+
+Load schema only:
+
+```powershell
+.\scripts\load_integrity_db.ps1 -LoadSchemaOnly
+```
+
+Run the full smoke test on a clean database name:
+
+```powershell
+.\scripts\load_integrity_db.ps1 -RunSmokeTest
+```
+
+Load schema/sample data and run the stale-root DB demo:
+
+```powershell
+.\scripts\load_integrity_db.ps1 -RunDemo
+```
+
+Run only the stale-root DB demo when the DB is already loaded:
+
+```powershell
+.\scripts\load_integrity_db.ps1 -SkipLoad -RunDemo
+```
+
+`scripts/load_integrity_db.ps1` uses the MySQL CLI `SOURCE` command internally
+and does not rely on PowerShell input redirection.
+
+### Optional cmd/bash Style
+
+In `cmd.exe`, Git Bash, or another shell where input redirection is expected to
+work, the equivalent manual sequence is:
+
+```bash
 mysql -u your_mysql_user -p < database/schema.sql
-```
-
-2. Load sample data:
-
-```powershell
 mysql -u your_mysql_user -p credential_verifiability_system < database/sample_data.sql
-```
-
-3. Run only the DB-side integrity demo:
-
-```powershell
 mysql -u your_mysql_user -p credential_verifiability_system < database/integrity_demo.sql
-```
-
-Inside an interactive MySQL session from the repo root, the equivalent is:
-
-```sql
-SOURCE database/integrity_demo.sql;
 ```
 
 The demo:
@@ -170,3 +193,65 @@ $env:DB_PASSWORD = "your_mysql_password"
 
 python scripts/merkle_demo.py --student-id "student-uuid-here"
 ```
+
+5. Generate a combined integrity report:
+
+```powershell
+python scripts/generate_integrity_report.py --student-id "student-uuid-here" --pretty
+python scripts/generate_integrity_report.py --all-students --pretty
+python scripts/generate_integrity_report.py --all-students --json-out reports/integrity.json --csv-out reports/integrity.csv
+```
+
+Or run the Windows-friendly one-shot report demo:
+
+```powershell
+.\scripts\run_integrity_demo.ps1
+```
+
+## Stage 4: Combined Integrity Reports
+
+`scripts/generate_integrity_report.py` combines the official DB operational
+status from `vw_integrity_status` with the external Python Merkle recomputation
+from `scripts/merkle_demo.py`.
+
+Supported modes:
+
+- `--student-id <id>`: report for one student.
+- `--all-students`: report for every student.
+- `--refresh-first`: refresh Merkle state before reporting.
+- `--pretty`: print a demo-friendly console report.
+- `--json-out <path>`: write structured JSON containing `summary` and
+  `students`.
+- `--csv-out <path>`: write flat per-student rows for quick review.
+
+Parent directories for `--json-out` and `--csv-out` are created automatically.
+Generated report files under `reports/` are ignored by Git.
+
+The report includes:
+
+- student identity
+- DB integrity status and remarks
+- stored current root
+- Python recomputed root
+- leaf count
+- root timestamp
+- Python verification result
+- final `overall_result`
+
+Overall result meanings:
+
+- `VALID`: DB status is healthy and Python recomputation matches the stored root.
+- `STALE_ROOT`: DB reports the Merkle state is stale after credential changes.
+- `MISMATCH`: Python and stored root disagree.
+- `INVESTIGATE`: DB and Python signals are incomplete or do not align cleanly.
+- `ERROR`: the student could not be verified cleanly.
+
+Exit-code behavior:
+
+- `0`: every checked student has `overall_result = VALID`.
+- `1`: at least one checked student is `STALE_ROOT`, `MISMATCH`,
+  `INVESTIGATE`, or `ERROR`.
+- `2`: the script could not run because of setup/configuration/DB errors.
+
+For a compact demo script and fallback checklist, see
+`scripts/DEMO_CHECKLIST.md`.

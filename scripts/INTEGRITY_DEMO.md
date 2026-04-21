@@ -27,6 +27,24 @@ $env:DB_USER = "your_mysql_user"
 $env:DB_PASSWORD = "your_mysql_password"
 ```
 
+Load schema and sample data on Windows PowerShell:
+
+```powershell
+.\scripts\load_integrity_db.ps1
+```
+
+Run the DB stale-root demo after the DB is loaded:
+
+```powershell
+.\scripts\load_integrity_db.ps1 -SkipLoad -RunDemo
+```
+
+Run the full DB smoke test on a clean database name:
+
+```powershell
+.\scripts\load_integrity_db.ps1 -RunSmokeTest
+```
+
 ## Run
 
 Pass the student UUID to verify:
@@ -59,6 +77,51 @@ the verifier. Decimal and timestamp-like values can expose formatting
 differences between SQL `CAST(... AS CHAR)` and Python value stringification;
 the parity mode helps identify whether the mismatch begins at leaf hashing or
 at the Merkle parent/root layer.
+
+## Combined Report Generation
+
+Use `scripts/generate_integrity_report.py` when you need one demo/submission
+output that combines:
+
+- DB operational status from `vw_integrity_status`
+- Python external Merkle recomputation from `merkle_demo.py`
+- an aggregate summary
+- optional JSON/CSV export files
+
+One-student report:
+
+```powershell
+python scripts/generate_integrity_report.py --student-id "student-uuid-here" --pretty
+```
+
+All-students report:
+
+```powershell
+python scripts/generate_integrity_report.py --all-students --pretty
+```
+
+Export JSON and CSV:
+
+```powershell
+python scripts/generate_integrity_report.py --all-students --json-out reports/integrity.json --csv-out reports/integrity.csv
+```
+
+Windows one-shot demo runner:
+
+```powershell
+.\scripts\run_integrity_demo.ps1
+```
+
+Add `--refresh-first` when you want the report to refresh Merkle leaves and
+roots before checking. The DB status remains the official operational state;
+the Python result is the independent external proof/check layered into the
+report.
+
+Report exit codes:
+
+- `0`: all checked students are `VALID`
+- `1`: at least one checked student is non-valid
+- `2`: setup, dependency, or DB connection error
 
 ## Result Meaning
 

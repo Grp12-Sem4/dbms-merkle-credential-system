@@ -305,61 +305,79 @@ def verify(args: argparse.Namespace) -> VerificationResult:
 
     try:
         cursor = connection.cursor(dictionary=True)
-
-        if not student_exists(cursor, args.student_id):
-            raise DemoError(f"Student not found: {args.student_id}")
-
-        if args.refresh_first:
-            refresh_merkle(cursor, connection, args.student_id)
-
-        current_version = get_current_version(cursor, args.student_id)
-        version_no = args.version if args.version is not None else current_version
-
-        if version_no != current_version:
-            raise DemoError(
-                "Independent verification is available only for the active version. "
-                "The schema does not store raw historical values or versioned roots "
-                f"needed to recompute version {version_no} outside SQL."
-            )
-
-        leaf_metadata = get_current_leaf_metadata(cursor, args.student_id)
-        leaf_inputs = get_python_leaf_inputs(cursor, args.student_id)
-        leaf_hashes = [
-            hash_merkle_leaf(field_name, field_value)
-            for field_name, field_value in leaf_inputs
-        ]
-
-        if len(leaf_hashes) != int(leaf_metadata["leaf_count"]):
-            raise DemoError(
-                "Raw credential leaf count does not match active DB leaf metadata: "
-                f"python={len(leaf_hashes)}, db={leaf_metadata['leaf_count']}. "
-                "Run with --refresh-first if DB Merkle rows are stale."
-            )
-
-        computed_root, computed_tree_levels = recompute_root(leaf_hashes)
-        stored_root = get_current_root(cursor, args.student_id)
-        parity = debug_sql_parity(cursor, leaf_inputs) if args.debug_sql_parity else None
-
-        status = "MATCH" if computed_root == stored_root["root_hash"] else "MISMATCH"
-        message = None
-        if computed_tree_levels != int(stored_root["tree_level_count"]):
-            message = (
-                "Computed tree level count differs from the stored metadata even "
-                "though root comparison is authoritative for MATCH/MISMATCH."
-            )
-
-        return VerificationResult(
-            status=status,
+        return verify_student(
+            cursor,
+            connection,
             student_id=args.student_id,
-            version_no=version_no,
-            leaf_count=len(leaf_hashes),
-            computed_root=computed_root,
-            stored_root=stored_root["root_hash"],
-            message=message,
-            sql_parity=parity,
+            version=args.version,
+            refresh_first=args.refresh_first,
+            debug_sql_parity_enabled=args.debug_sql_parity,
         )
     finally:
         connection.close()
+
+
+def verify_student(
+    cursor: Any,
+    connection: Any,
+    student_id: str,
+    version: int | None = None,
+    refresh_first: bool = False,
+    debug_sql_parity_enabled: bool = False,
+) -> VerificationResult:
+    """Verify one student using an existing DB cursor/connection."""
+    if not student_exists(cursor, student_id):
+        raise DemoError(f"Student not found: {student_id}")
+
+    if refresh_first:
+        refresh_merkle(cursor, connection, student_id)
+
+    current_version = get_current_version(cursor, student_id)
+    version_no = version if version is not None else current_version
+
+    if version_no != current_version:
+        raise DemoError(
+            "Independent verification is available only for the active version. "
+            "The schema does not store raw historical values or versioned roots "
+            f"needed to recompute version {version_no} outside SQL."
+        )
+
+    leaf_metadata = get_current_leaf_metadata(cursor, student_id)
+    leaf_inputs = get_python_leaf_inputs(cursor, student_id)
+    leaf_hashes = [
+        hash_merkle_leaf(field_name, field_value)
+        for field_name, field_value in leaf_inputs
+    ]
+
+    if len(leaf_hashes) != int(leaf_metadata["leaf_count"]):
+        raise DemoError(
+            "Raw credential leaf count does not match active DB leaf metadata: "
+            f"python={len(leaf_hashes)}, db={leaf_metadata['leaf_count']}. "
+            "Run with --refresh-first if DB Merkle rows are stale."
+        )
+
+    computed_root, computed_tree_levels = recompute_root(leaf_hashes)
+    stored_root = get_current_root(cursor, student_id)
+    parity = debug_sql_parity(cursor, leaf_inputs) if debug_sql_parity_enabled else None
+
+    status = "MATCH" if computed_root == stored_root["root_hash"] else "MISMATCH"
+    message = None
+    if computed_tree_levels != int(stored_root["tree_level_count"]):
+        message = (
+            "Computed tree level count differs from the stored metadata even "
+            "though root comparison is authoritative for MATCH/MISMATCH."
+        )
+
+    return VerificationResult(
+        status=status,
+        student_id=student_id,
+        version_no=version_no,
+        leaf_count=len(leaf_hashes),
+        computed_root=computed_root,
+        stored_root=stored_root["root_hash"],
+        message=message,
+        sql_parity=parity,
+    )
 
 
 def print_result(result: VerificationResult, as_json: bool) -> None:
