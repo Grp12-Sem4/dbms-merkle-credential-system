@@ -1,12 +1,14 @@
 # Environment variables
 .env
+*.env
 .env.local
+scripts/.env
 
-# Generated demo/report outputs
+# Generated outputs
 reports/
 
 # Virtual environments
-scripts/venv
+scripts/venv/
 .venv/
 venv/
 env/
@@ -18,45 +20,24 @@ __pycache__/
 *.so
 .Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
-.hypothesis/
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
 
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-desktop.ini
+Thumbs.db
+
+# Database (optional)
+*.sql.bak
+*.dump
+*.sqlite3
