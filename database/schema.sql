@@ -1,5 +1,8 @@
-CREATE DATABASE credential_verifiability_system;
+CREATE DATABASE credential_verifiability_system
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
 USE credential_verifiability_system;
+
 CREATE TABLE admin (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     full_name TEXT NOT NULL,
@@ -253,11 +256,12 @@ CREATE TABLE merkle_tree_root_history (
 ) ENGINE=InnoDB;
 
 DELIMITER $$
+
 CREATE FUNCTION fn_normalize_text(p_input TEXT)
 RETURNS TEXT
 DETERMINISTIC
 BEGIN
-    RETURN LOWER(TRIM(IFNULL(p_input, '')));
+    RETURN CONVERT(LOWER(TRIM(IFNULL(p_input, ''))) USING utf8mb4) COLLATE utf8mb4_unicode_ci;
 END$$
 
 CREATE FUNCTION fn_hash_personal_credential(
@@ -274,12 +278,13 @@ RETURNS CHAR(64)
 DETERMINISTIC
 BEGIN
     RETURN SHA2(
-        CONCAT_WS('|',
+        CONCAT_WS(
+            _utf8mb4'|' COLLATE utf8mb4_unicode_ci,
             fn_normalize_text(p_student_id),
             fn_normalize_text(p_father_name),
             fn_normalize_text(p_mother_name),
-            IFNULL(CAST(p_tenth_grade_marks AS CHAR), ''),
-            IFNULL(CAST(p_twelfth_grade_marks AS CHAR), ''),
+            CONVERT(IFNULL(CAST(p_tenth_grade_marks AS CHAR), '') USING utf8mb4) COLLATE utf8mb4_unicode_ci,
+            CONVERT(IFNULL(CAST(p_twelfth_grade_marks AS CHAR), '') USING utf8mb4) COLLATE utf8mb4_unicode_ci,
             fn_normalize_text(p_city),
             fn_normalize_text(p_state),
             fn_normalize_text(p_permanent_address)
@@ -301,12 +306,13 @@ RETURNS CHAR(64)
 DETERMINISTIC
 BEGIN
     RETURN SHA2(
-        CONCAT_WS('|',
+        CONCAT_WS(
+            _utf8mb4'|' COLLATE utf8mb4_unicode_ci,
             fn_normalize_text(p_student_id),
             fn_normalize_text(p_institution_id),
             fn_normalize_text(p_department_id),
             fn_normalize_text(p_personal_registration_number),
-            IFNULL(CAST(p_cumulative_gpa AS CHAR), ''),
+            CONVERT(IFNULL(CAST(p_cumulative_gpa AS CHAR), '') USING utf8mb4) COLLATE utf8mb4_unicode_ci,
             fn_normalize_text(p_graduation_status),
             fn_normalize_text(p_status)
         ),
@@ -322,7 +328,8 @@ RETURNS CHAR(64)
 DETERMINISTIC
 BEGIN
     RETURN SHA2(
-        CONCAT_WS('|',
+        CONCAT_WS(
+            _utf8mb4'|' COLLATE utf8mb4_unicode_ci,
             fn_normalize_text(p_field_name),
             fn_normalize_text(p_field_value)
         ),
@@ -337,8 +344,16 @@ CREATE FUNCTION fn_merkle_parent_hash(
 RETURNS CHAR(64)
 DETERMINISTIC
 BEGIN
-    RETURN SHA2(CONCAT(IFNULL(p_left_hash, ''), '|', IFNULL(p_right_hash, '')), 256);
+    RETURN SHA2(
+        CONCAT_WS(
+            _utf8mb4'|' COLLATE utf8mb4_unicode_ci,
+            CONVERT(IFNULL(p_left_hash, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci,
+            CONVERT(IFNULL(p_right_hash, '') USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        ),
+        256
+    );
 END$$
+
 DELIMITER ;
 
 DELIMITER $$
