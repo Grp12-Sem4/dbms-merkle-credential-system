@@ -184,7 +184,7 @@ SET @audit_action_override = 'UPDATED';
 
 UPDATE student_institution_credential
 SET cumulative_gpa = 8.82
-WHERE id = 'c5c5109e-3d5c-11f1-94ee-6018956cabf1';
+WHERE personal_registration_number = 'PRN001';
 
 SET @actor_admin_id = NULL;
 SET @actor_student_id = NULL;

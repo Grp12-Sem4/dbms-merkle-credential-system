@@ -950,6 +950,317 @@ END$$
 DELIMITER ;
 
 DELIMITER $$
+CREATE PROCEDURE sp_verify_student_merkle_integrity(IN p_student_id CHAR(36))
+BEGIN
+    DECLARE v_active_version INT;
+    DECLARE v_leaf_count INT DEFAULT 0;
+    DECLARE v_tree_level_count INT DEFAULT 0;
+    DECLARE v_current_count INT DEFAULT 0;
+    DECLARE v_stored_root CHAR(64);
+    DECLARE v_recomputed_root CHAR(64);
+    DECLARE v_stored_leaf_count INT;
+    DECLARE v_stored_tree_level_count INT;
+    DECLARE v_current_root_count INT DEFAULT 0;
+    DECLARE v_root_generated_at DATETIME DEFAULT NULL;
+    DECLARE v_latest_credential_modified_at DATETIME DEFAULT NULL;
+    DECLARE v_latest_active_leaf_created_at DATETIME DEFAULT NULL;
+    DECLARE v_status VARCHAR(30);
+    DECLARE v_remarks TEXT;
+
+    SELECT MAX(version_no)
+    INTO v_active_version
+    FROM merkle_tree_leaf_nodes
+    WHERE student_id = p_student_id
+      AND is_active = TRUE;
+
+    SELECT COUNT(*), MAX(created_at)
+    INTO v_leaf_count, v_latest_active_leaf_created_at
+    FROM merkle_tree_leaf_nodes
+    WHERE student_id = p_student_id
+      AND version_no = v_active_version
+      AND is_active = TRUE;
+
+    SELECT COUNT(*)
+    INTO v_current_root_count
+    FROM merkle_tree_root_history
+    WHERE student_id = p_student_id
+      AND is_current = TRUE;
+
+    SELECT
+        current_root.root_hash,
+        current_root.leaf_count,
+        current_root.tree_level_count,
+        current_root.generated_at
+    INTO
+        v_stored_root,
+        v_stored_leaf_count,
+        v_stored_tree_level_count,
+        v_root_generated_at
+    FROM (SELECT 1) AS anchor
+    LEFT JOIN (
+        SELECT root_hash, leaf_count, tree_level_count, generated_at
+        FROM merkle_tree_root_history
+        WHERE student_id = p_student_id
+          AND is_current = TRUE
+        ORDER BY generated_at DESC, id DESC
+        LIMIT 1
+    ) AS current_root
+      ON TRUE;
+
+    SELECT MAX(modified_at)
+    INTO v_latest_credential_modified_at
+    FROM (
+        SELECT last_modified_at AS modified_at
+        FROM student_personal_credential
+        WHERE student_id = p_student_id
+
+        UNION ALL
+
+        SELECT last_modified_at
+        FROM student_institution_credential
+        WHERE student_id = p_student_id
+    ) AS credential_updates;
+
+    IF v_active_version IS NULL OR v_leaf_count = 0 THEN
+        SET v_status = 'MISSING_LEAVES';
+        SET v_remarks = 'No active Merkle leaves found for this student';
+    ELSEIF v_stored_root IS NULL THEN
+        SET v_status = 'MISSING_ROOT';
+        SET v_remarks = 'No current Merkle root found for this student';
+    ELSE
+        DROP TEMPORARY TABLE IF EXISTS tmp_verify_merkle_nodes;
+        DROP TEMPORARY TABLE IF EXISTS tmp_verify_merkle_nodes_copy;
+        DROP TEMPORARY TABLE IF EXISTS tmp_verify_merkle_next;
+
+        CREATE TEMPORARY TABLE tmp_verify_merkle_nodes (
+            seq INT AUTO_INCREMENT PRIMARY KEY,
+            node_hash CHAR(64) NOT NULL
+        );
+
+        INSERT INTO tmp_verify_merkle_nodes (node_hash)
+        SELECT leaf_hash
+        FROM merkle_tree_leaf_nodes
+        WHERE student_id = p_student_id
+          AND version_no = v_active_version
+          AND is_active = TRUE
+        ORDER BY leaf_position;
+
+        SET v_current_count = (SELECT COUNT(*) FROM tmp_verify_merkle_nodes);
+        SET v_tree_level_count = 1;
+
+        WHILE v_current_count > 1 DO
+            DROP TEMPORARY TABLE IF EXISTS tmp_verify_merkle_nodes_copy;
+            CREATE TEMPORARY TABLE tmp_verify_merkle_nodes_copy
+            AS
+            SELECT seq, node_hash
+            FROM tmp_verify_merkle_nodes;
+
+            DROP TEMPORARY TABLE IF EXISTS tmp_verify_merkle_next;
+            CREATE TEMPORARY TABLE tmp_verify_merkle_next (
+                seq INT AUTO_INCREMENT PRIMARY KEY,
+                node_hash CHAR(64) NOT NULL
+            );
+
+            INSERT INTO tmp_verify_merkle_next (node_hash)
+            SELECT fn_merkle_parent_hash(
+                       t1.node_hash,
+                       COALESCE(t2.node_hash, t1.node_hash)
+                   )
+            FROM tmp_verify_merkle_nodes t1
+            LEFT JOIN tmp_verify_merkle_nodes_copy t2
+                   ON t2.seq = t1.seq + 1
+            WHERE MOD(t1.seq, 2) = 1
+            ORDER BY t1.seq;
+
+            TRUNCATE TABLE tmp_verify_merkle_nodes;
+
+            INSERT INTO tmp_verify_merkle_nodes (node_hash)
+            SELECT node_hash
+            FROM tmp_verify_merkle_next
+            ORDER BY seq;
+
+            DROP TEMPORARY TABLE IF EXISTS tmp_verify_merkle_nodes_copy;
+            DROP TEMPORARY TABLE IF EXISTS tmp_verify_merkle_next;
+
+            SET v_current_count = (SELECT COUNT(*) FROM tmp_verify_merkle_nodes);
+            SET v_tree_level_count = v_tree_level_count + 1;
+        END WHILE;
+
+        SELECT node_hash
+        INTO v_recomputed_root
+        FROM tmp_verify_merkle_nodes
+        LIMIT 1;
+
+        IF v_current_root_count > 1 THEN
+            SET v_status = 'MULTIPLE_CURRENT_ROOTS';
+            SET v_remarks = 'Multiple Merkle roots are marked current for this student';
+        ELSEIF v_recomputed_root <> v_stored_root
+           OR v_leaf_count <> IFNULL(v_stored_leaf_count, -1)
+           OR v_tree_level_count <> IFNULL(v_stored_tree_level_count, -1) THEN
+            SET v_status = 'MISMATCH';
+            SET v_remarks = 'Merkle root mismatch detected';
+
+            INSERT INTO tampered_credential_log (
+                id,
+                student_id,
+                credential_type,
+                credential_id_personal,
+                credential_id_institution,
+                stored_hash,
+                recalculated_hash,
+                detected_by,
+                rollback_status,
+                remarks
+            )
+            SELECT
+                UUID(),
+                p_student_id,
+                NULL,
+                NULL,
+                NULL,
+                v_stored_root,
+                v_recomputed_root,
+                'DB_MERKLE_VERIFY',
+                'PENDING',
+                'Merkle root mismatch detected'
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM tampered_credential_log
+                WHERE student_id = p_student_id
+                  AND detected_by = 'DB_MERKLE_VERIFY'
+                  AND rollback_status = 'PENDING'
+                  AND stored_hash <=> v_stored_root
+                  AND recalculated_hash <=> v_recomputed_root
+                  AND remarks = 'Merkle root mismatch detected'
+            );
+        ELSEIF v_latest_credential_modified_at IS NOT NULL
+              AND (
+                  v_latest_credential_modified_at > v_root_generated_at
+                  OR v_latest_credential_modified_at > v_latest_active_leaf_created_at
+              ) THEN
+            SET v_status = 'STALE_ROOT';
+            SET v_remarks = 'Merkle state stale after credential update';
+        ELSE
+            SET v_status = 'VALID';
+            SET v_remarks = 'Stored Merkle root matches active leaves';
+        END IF;
+
+        DROP TEMPORARY TABLE IF EXISTS tmp_verify_merkle_nodes;
+        DROP TEMPORARY TABLE IF EXISTS tmp_verify_merkle_nodes_copy;
+        DROP TEMPORARY TABLE IF EXISTS tmp_verify_merkle_next;
+    END IF;
+
+    SELECT
+        p_student_id AS student_id,
+        v_stored_root AS stored_root,
+        v_recomputed_root AS recomputed_root,
+        v_leaf_count AS leaf_count,
+        v_active_version AS version_no,
+        v_current_root_count AS current_root_count,
+        v_tree_level_count AS recomputed_tree_level_count,
+        v_root_generated_at AS current_root_timestamp,
+        v_latest_credential_modified_at AS latest_credential_modified_at,
+        v_status AS status,
+        v_remarks AS remarks;
+END$$
+DELIMITER ;
+
+CREATE VIEW vw_integrity_status AS
+SELECT
+    s.id AS student_id,
+    r.root_hash AS current_root_hash,
+    IFNULL(l.leaf_count, 0) AS leaf_count,
+    r.generated_at AS root_generated_at,
+    IFNULL(rc.current_root_count, 0) AS current_root_count,
+    t.latest_tamper_time,
+    CASE
+        WHEN IFNULL(l.leaf_count, 0) = 0 THEN 'MISSING_LEAVES'
+        WHEN r.root_hash IS NULL THEN 'MISSING_ROOT'
+        WHEN IFNULL(rc.current_root_count, 0) > 1 THEN 'MULTIPLE_CURRENT_ROOTS'
+        WHEN t.latest_tamper_time IS NOT NULL THEN 'TAMPERED_OR_MISMATCHED'
+        WHEN c.latest_credential_modified_at IS NOT NULL
+             AND (
+                 c.latest_credential_modified_at > r.generated_at
+                 OR c.latest_credential_modified_at > l.latest_leaf_created_at
+             ) THEN 'STALE_ROOT'
+        ELSE 'VALID'
+    END AS integrity_status,
+    CASE
+        WHEN IFNULL(l.leaf_count, 0) = 0 THEN 'No active Merkle leaves found'
+        WHEN r.root_hash IS NULL THEN 'No current Merkle root found'
+        WHEN IFNULL(rc.current_root_count, 0) > 1 THEN 'Multiple Merkle roots are marked current'
+        WHEN t.latest_tamper_time IS NOT NULL THEN t.latest_tamper_remarks
+        WHEN c.latest_credential_modified_at IS NOT NULL
+             AND (
+                 c.latest_credential_modified_at > r.generated_at
+                 OR c.latest_credential_modified_at > l.latest_leaf_created_at
+             ) THEN 'Merkle state stale after credential update'
+        ELSE 'Stored Merkle root is current with active leaves'
+    END AS remarks
+FROM student s
+LEFT JOIN (
+    SELECT
+        student_id,
+        COUNT(*) AS leaf_count,
+        MAX(version_no) AS active_version_no,
+        MAX(created_at) AS latest_leaf_created_at
+    FROM merkle_tree_leaf_nodes
+    WHERE is_active = TRUE
+    GROUP BY student_id
+) l
+  ON l.student_id = s.id
+LEFT JOIN (
+    SELECT r1.student_id, r1.root_hash, r1.leaf_count, r1.generated_at
+    FROM merkle_tree_root_history r1
+    WHERE r1.is_current = TRUE
+      AND NOT EXISTS (
+          SELECT 1
+          FROM merkle_tree_root_history r2
+          WHERE r2.student_id = r1.student_id
+            AND r2.is_current = TRUE
+            AND (
+                r2.generated_at > r1.generated_at
+                OR (
+                    r2.generated_at = r1.generated_at
+                    AND r2.id > r1.id
+                )
+            )
+      )
+) r
+  ON r.student_id = s.id
+LEFT JOIN (
+    SELECT student_id, COUNT(*) AS current_root_count
+    FROM merkle_tree_root_history
+    WHERE is_current = TRUE
+    GROUP BY student_id
+) rc
+  ON rc.student_id = s.id
+LEFT JOIN (
+    SELECT student_id, MAX(modified_at) AS latest_credential_modified_at
+    FROM (
+        SELECT student_id, last_modified_at AS modified_at
+        FROM student_personal_credential
+
+        UNION ALL
+
+        SELECT student_id, last_modified_at
+        FROM student_institution_credential
+    ) credential_updates
+    GROUP BY student_id
+) c
+  ON c.student_id = s.id
+LEFT JOIN (
+    SELECT
+        student_id,
+        MAX(tampering_found) AS latest_tamper_time,
+        MAX(remarks) AS latest_tamper_remarks
+    FROM tampered_credential_log
+    WHERE rollback_status = 'PENDING'
+    GROUP BY student_id
+) t
+  ON t.student_id = s.id;
+
+DELIMITER $$
 CREATE PROCEDURE sp_refresh_all_merkle()
 BEGIN
     DECLARE done INT DEFAULT 0;

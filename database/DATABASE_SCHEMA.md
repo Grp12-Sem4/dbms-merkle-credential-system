@@ -1,4 +1,4 @@
-Note: This document is a simplified schema summary for team understanding. The exact implementation source of truth is `schema_only.sql`.
+Note: This document is a simplified schema summary for team understanding. The exact implementation source of truth is `schema.sql`.
 # Database Schema Summary
 
 ## Project Title
@@ -358,3 +358,31 @@ The SQL implementation includes:
 - procedures for rollback
 - procedures for Merkle leaf rebuild
 - procedures for Merkle root storage
+
+### Stage 2 Merkle Integrity Status
+
+Additional DB-side integrity objects:
+
+- `sp_verify_student_merkle_integrity(IN p_student_id CHAR(36))`
+- `vw_integrity_status`
+
+`sp_verify_student_merkle_integrity` recomputes the active Merkle root from
+active leaf rows using the same SQL parent-hash behavior as
+`sp_store_merkle_root`, compares it against the current root in
+`merkle_tree_root_history`, and returns a status result set.
+
+`vw_integrity_status` provides one frontend/demo-friendly row per student with
+the current root, active leaf count, root timestamp, current-root row count,
+latest pending tamper time, and an integrity status.
+
+Status values:
+
+- `VALID`: current root matches active leaves and is not stale.
+- `STALE_ROOT`: credential data changed after the current root/leaves were
+  generated.
+- `MISMATCH`: recomputed root or Merkle metadata differs from the stored root.
+- `MULTIPLE_CURRENT_ROOTS`: more than one root is marked current for the
+  student.
+- `TAMPERED_OR_MISMATCHED`: the view found a pending tamper/mismatch log.
+- `MISSING_ROOT`: active leaves exist but no current root exists.
+- `MISSING_LEAVES`: no active leaves exist for the student.
