@@ -1,9 +1,9 @@
 param(
-    [string]$HostName = $env:DB_HOST,
-    [string]$Port = $env:DB_PORT,
-    [string]$DatabaseName = $env:DB_NAME,
-    [string]$User = $env:DB_USER,
-    [string]$Password = $env:DB_PASSWORD,
+    [string]$HostName,
+    [string]$Port,
+    [string]$DatabaseName,
+    [string]$User,
+    [string]$Password,
     [switch]$LoadSchemaOnly,
     [switch]$LoadSampleData,
     [switch]$RunSmokeTest,
@@ -15,6 +15,25 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $databaseDir = Join-Path $repoRoot "database"
+
+. (Join-Path $PSScriptRoot "load_dotenv.ps1")
+Import-DotEnvFile -Path (Join-Path $repoRoot ".env")
+
+if ([string]::IsNullOrWhiteSpace($HostName)) {
+    $HostName = [Environment]::GetEnvironmentVariable("DB_HOST", "Process")
+}
+if ([string]::IsNullOrWhiteSpace($Port)) {
+    $Port = [Environment]::GetEnvironmentVariable("DB_PORT", "Process")
+}
+if ([string]::IsNullOrWhiteSpace($DatabaseName)) {
+    $DatabaseName = [Environment]::GetEnvironmentVariable("DB_NAME", "Process")
+}
+if ([string]::IsNullOrWhiteSpace($User)) {
+    $User = [Environment]::GetEnvironmentVariable("DB_USER", "Process")
+}
+if ([string]::IsNullOrWhiteSpace($Password)) {
+    $Password = [Environment]::GetEnvironmentVariable("DB_PASSWORD", "Process")
+}
 
 function Require-Value {
     param(

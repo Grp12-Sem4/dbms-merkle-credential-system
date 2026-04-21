@@ -42,6 +42,7 @@ dbms-merkle-credential-system/
     |-- INTEGRITY_DEMO.md
     |-- generate_integrity_report.py
     |-- load_integrity_db.ps1
+    |-- load_dotenv.ps1
     |-- merkle_demo.py
     |-- run_integrity_demo.ps1
     `-- requirements.txt
@@ -113,15 +114,18 @@ Run these commands from the repository root.
 
 ### PowerShell Setup Path
 
-Set the database connection environment variables:
+Create a repo-root `.env` file with the database connection settings:
 
-```powershell
-$env:DB_HOST = "localhost"
-$env:DB_PORT = "3306"
-$env:DB_NAME = "credential_verifiability_system"
-$env:DB_USER = "your_mysql_user"
-$env:DB_PASSWORD = "your_mysql_password"
+```dotenv
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=credential_verifiability_system
+DB_USER=your_mysql_user
+DB_PASSWORD=your_mysql_password
 ```
+
+`.env` is ignored by Git. Shell environment variables and explicit PowerShell
+parameters can override `.env` values when needed.
 
 Load schema and sample data:
 
@@ -184,12 +188,6 @@ external verifier used to prove the DB result can be recomputed outside SQL.
 
 ```powershell
 python -m pip install -r scripts/requirements.txt
-
-$env:DB_HOST = "localhost"
-$env:DB_PORT = "3306"
-$env:DB_NAME = "credential_verifiability_system"
-$env:DB_USER = "your_mysql_user"
-$env:DB_PASSWORD = "your_mysql_password"
 
 python scripts/merkle_demo.py --student-id "student-uuid-here"
 ```

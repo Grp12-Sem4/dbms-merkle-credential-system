@@ -17,15 +17,18 @@ Install the Python dependency:
 python -m pip install -r scripts/requirements.txt
 ```
 
-Set the database connection environment variables:
+Create a repo-root `.env` file:
 
-```powershell
-$env:DB_HOST = "localhost"
-$env:DB_PORT = "3306"
-$env:DB_NAME = "credential_verifiability_system"
-$env:DB_USER = "your_mysql_user"
-$env:DB_PASSWORD = "your_mysql_password"
+```dotenv
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=credential_verifiability_system
+DB_USER=your_mysql_user
+DB_PASSWORD=your_mysql_password
 ```
+
+The Python and PowerShell scripts load `.env` automatically. Process
+environment variables override `.env` values when present.
 
 Load schema and sample data on Windows PowerShell:
 

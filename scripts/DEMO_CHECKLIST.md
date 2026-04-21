@@ -2,15 +2,18 @@
 
 ## Environment
 
-Set these before running Python scripts:
+Create a repo-root `.env` file:
 
-```powershell
-$env:DB_HOST = "localhost"
-$env:DB_PORT = "3306"
-$env:DB_NAME = "credential_verifiability_system"
-$env:DB_USER = "your_mysql_user"
-$env:DB_PASSWORD = "your_mysql_password"
+```dotenv
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=credential_verifiability_system
+DB_USER=your_mysql_user
+DB_PASSWORD=your_mysql_password
 ```
+
+The Python and PowerShell scripts load `.env` automatically. Existing process
+environment variables override `.env` values.
 
 Install Python dependencies:
 

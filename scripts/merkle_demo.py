@@ -19,6 +19,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 try:
@@ -28,8 +29,21 @@ except ImportError:  # pragma: no cover - exercised by users without deps
     mysql = None
     MySQLError = Exception
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - handled by get_db_config error text
+    load_dotenv = None
+
 
 REQUIRED_ENV_VARS = ("DB_HOST", "DB_PORT", "DB_NAME", "DB_USER", "DB_PASSWORD")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_repo_dotenv() -> None:
+    """Load repo-root .env without overriding shell-provided values."""
+    dotenv_path = REPO_ROOT / ".env"
+    if load_dotenv is not None and dotenv_path.exists():
+        load_dotenv(dotenv_path=dotenv_path, override=False)
 
 
 @dataclass
@@ -92,9 +106,16 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_db_config() -> dict[str, Any]:
+    load_repo_dotenv()
     missing = [name for name in REQUIRED_ENV_VARS if not os.getenv(name)]
     if missing:
-        raise DemoError("Missing required environment variables: " + ", ".join(missing))
+        message = "Missing required DB settings: " + ", ".join(missing)
+        if load_dotenv is None and (REPO_ROOT / ".env").exists():
+            message += (
+                ". Repo .env exists, but python-dotenv is not installed. "
+                "Run `python -m pip install -r scripts/requirements.txt`."
+            )
+        raise DemoError(message)
 
     try:
         port = int(os.environ["DB_PORT"])
