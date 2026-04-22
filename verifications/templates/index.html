@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic Credential Verification</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">Credential Verification Platform</p>
+                <h1>Academic Records Trust Console</h1>
+            </div>
+            <button class="ghost-button" type="button" data-fill-demo>Load Demo Record</button>
+        </header>
+
+        <section class="hero">
+            <div class="hero-copy">
+                <p class="eyebrow">Overview</p>
+                <h2>Verify identity, institutional claims, and record integrity from one controlled workflow.</h2>
+                <p class="hero-text">
+                    This interface connects the Flask verification service to MySQL-backed academic credentials,
+                    consent checks, and Merkle-based integrity validation. Start with identity claims, move through
+                    institutional data, and finish with the cryptographic integrity proof.
+                </p>
+                <div class="hero-metrics">
+                    <article>
+                        <span>8</span>
+                        <p>verification workflows</p>
+                    </article>
+                    <article>
+                        <span>2</span>
+                        <p>credential domains</p>
+                    </article>
+                    <article>
+                        <span>1</span>
+                        <p>Merkle proof layer</p>
+                    </article>
+                </div>
+            </div>
+
+            <aside class="demo-card">
+                <div class="demo-card-header">
+                    <div>
+                        <p class="eyebrow">Active Demo Record</p>
+                        <h3>Rahul Patil</h3>
+                    </div>
+                    <span class="record-badge">Ready</span>
+                </div>
+                <dl class="demo-grid">
+                    <div>
+                        <dt>Student ID</dt>
+                        <dd id="demo-student-id">07934009-3df5-11f1-85bd-f43afac184ba</dd>
+                    </div>
+                    <div>
+                        <dt>Verifier ID</dt>
+                        <dd id="demo-verifier-id">verifier_1</dd>
+                    </div>
+                    <div>
+                        <dt>Full Name</dt>
+                        <dd id="demo-full-name">Rahul Patil</dd>
+                    </div>
+                    <div>
+                        <dt>Date of Birth</dt>
+                        <dd id="demo-date-of-birth">2002-03-12</dd>
+                    </div>
+                    <div>
+                        <dt>Institution</dt>
+                        <dd id="demo-institution-name">Vishwakarma Institute of Technology</dd>
+                    </div>
+                    <div>
+                        <dt>Department</dt>
+                        <dd id="demo-department">Computer Engineering</dd>
+                    </div>
+                    <div>
+                        <dt>Status</dt>
+                        <dd id="demo-graduation-status">PURSUING</dd>
+                    </div>
+                    <div>
+                        <dt>GPA</dt>
+                        <dd id="demo-gpa">8.82</dd>
+                    </div>
+                    <div>
+                        <dt>City</dt>
+                        <dd id="demo-city">Pune</dd>
+                    </div>
+                </dl>
+            </aside>
+        </section>
+
+        <main class="workspace">
+            <section class="panel panel-forms">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">Verification Sequence</p>
+                        <h2>Claim Validation Workbench</h2>
+                    </div>
+                    <p class="panel-intro">
+                        Recommended order: identity, institution, academic status, then integrity proof.
+                    </p>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-header">
+                        <p class="section-step">Step 1</p>
+                        <h3>Identity Checks</h3>
+                    </div>
+                    <div class="forms-grid forms-grid-two">
+                        <form class="verify-form" data-endpoint="/verify/full-name" data-title="Full Name Verification">
+                            <div class="form-header">
+                                <h4>Full Name</h4>
+                                <p>Matches the claimed student name against the protected base identity record.</p>
+                            </div>
+                            <label>
+                                <span>Student ID</span>
+                                <input name="student_id" type="text" placeholder="Enter student UUID" required>
+                            </label>
+                            <label>
+                                <span>Verifier ID</span>
+                                <input name="verifier_id" type="text" placeholder="Enter verifier ID" required>
+                            </label>
+                            <label>
+                                <span>Claimed Full Name</span>
+                                <input name="full_name" type="text" placeholder="Rahul Patil" required>
+                            </label>
+                            <button type="submit">Verify Full Name</button>
+                        </form>
+
+                        <form class="verify-form" data-endpoint="/verify/date-of-birth" data-title="Date of Birth Verification">
+                            <div class="form-header">
+                                <h4>Date of Birth</h4>
+                                <p>Confirms the claimed birth date using the canonical student identity table.</p>
+                            </div>
+                            <label>
+                                <span>Student ID</span>
+                                <input name="student_id" type="text" placeholder="Enter student UUID" required>
+                            </label>
+                            <label>
+                                <span>Verifier ID</span>
+                                <input name="verifier_id" type="text" placeholder="Enter verifier ID" required>
+                            </label>
+                            <label>
+                                <span>Claimed Date of Birth</span>
+                                <input name="date_of_birth" type="date" required>
+                            </label>
+                            <button type="submit">Verify Date of Birth</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-header">
+                        <p class="section-step">Step 2</p>
+                        <h3>Institutional Context</h3>
+                    </div>
+                    <div class="forms-grid forms-grid-two">
+                        <form class="verify-form" data-endpoint="/verify/institution-name" data-title="Institution Verification">
+                            <div class="form-header">
+                                <h4>Institution Name</h4>
+                                <p>Confirms which institution issued the stored academic credential.</p>
+                            </div>
+                            <label>
+                                <span>Student ID</span>
+                                <input name="student_id" type="text" placeholder="Enter student UUID" required>
+                            </label>
+                            <label>
+                                <span>Verifier ID</span>
+                                <input name="verifier_id" type="text" placeholder="Enter verifier ID" required>
+                            </label>
+                            <label>
+                                <span>Claimed Institution Name</span>
+                                <input name="institution_name" type="text" placeholder="Vishwakarma Institute of Technology" required>
+                            </label>
+                            <button type="submit">Verify Institution</button>
+                        </form>
+
+                        <form class="verify-form" data-endpoint="/verify/department" data-title="Department Verification">
+                            <div class="form-header">
+                                <h4>Department</h4>
+                                <p>Verifies the department attached to the student's institutional credential.</p>
+                            </div>
+                            <label>
+                                <span>Student ID</span>
+                                <input name="student_id" type="text" placeholder="Enter student UUID" required>
+                            </label>
+                            <label>
+                                <span>Verifier ID</span>
+                                <input name="verifier_id" type="text" placeholder="Enter verifier ID" required>
+                            </label>
+                            <label>
+                                <span>Claimed Department</span>
+                                <input name="department" type="text" placeholder="Computer Engineering" required>
+                            </label>
+                            <button type="submit">Verify Department</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-header">
+                        <p class="section-step">Step 3</p>
+                        <h3>Academic Status Checks</h3>
+                    </div>
+                    <div class="forms-grid forms-grid-two">
+                        <form class="verify-form" data-endpoint="/verify/graduation-status" data-title="Graduation Status Verification">
+                            <div class="form-header">
+                                <h4>Graduation Status</h4>
+                                <p>Checks whether the student is currently pursuing, graduated, or in another tracked state.</p>
+                            </div>
+                            <label>
+                                <span>Student ID</span>
+                                <input name="student_id" type="text" placeholder="Enter student UUID" required>
+                            </label>
+                            <label>
+                                <span>Verifier ID</span>
+                                <input name="verifier_id" type="text" placeholder="Enter verifier ID" required>
+                            </label>
+                            <label>
+                                <span>Claimed Graduation Status</span>
+                                <input name="graduation_status" type="text" placeholder="PURSUING" required>
+                            </label>
+                            <button type="submit">Verify Graduation Status</button>
+                        </form>
+
+                        <form class="verify-form" data-endpoint="/verify/gpa" data-title="GPA Verification">
+                            <div class="form-header">
+                                <h4>GPA</h4>
+                                <p>Validates a claimed GPA only after consent and integrity checks pass.</p>
+                            </div>
+                            <label>
+                                <span>Student ID</span>
+                                <input name="student_id" type="text" placeholder="Enter student UUID" required>
+                            </label>
+                            <label>
+                                <span>Verifier ID</span>
+                                <input name="verifier_id" type="text" placeholder="Enter verifier ID" required>
+                            </label>
+                            <label>
+                                <span>Claimed GPA</span>
+                                <input name="gpa" type="number" step="0.01" placeholder="8.82" required>
+                            </label>
+                            <button type="submit">Verify GPA</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-header">
+                        <p class="section-step">Step 4</p>
+                        <h3>Supporting Personal Check</h3>
+                    </div>
+                    <div class="forms-grid forms-grid-single">
+                        <form class="verify-form" data-endpoint="/verify/city" data-title="City Verification">
+                            <div class="form-header">
+                                <h4>City</h4>
+                                <p>Checks whether the submitted city matches the protected student personal credential.</p>
+                            </div>
+                            <label>
+                                <span>Student ID</span>
+                                <input name="student_id" type="text" placeholder="Enter student UUID" required>
+                            </label>
+                            <label>
+                                <span>Verifier ID</span>
+                                <input name="verifier_id" type="text" placeholder="Enter verifier ID" required>
+                            </label>
+                            <label>
+                                <span>Claimed City</span>
+                                <input name="city" type="text" placeholder="Pune" required>
+                            </label>
+                            <button type="submit">Verify City</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="section-header">
+                        <p class="section-step">Step 5</p>
+                        <h3>Integrity Proof</h3>
+                    </div>
+                    <div class="forms-grid forms-grid-single">
+                        <form class="verify-form verify-form-emphasis" data-endpoint="/verify" data-title="Integrity Verification">
+                            <div class="form-header">
+                                <h4>Merkle Integrity Check</h4>
+                                <p>Confirms the stored Merkle root matches recomputed credential leaves for the selected student.</p>
+                            </div>
+                            <label>
+                                <span>Student ID</span>
+                                <input name="student_id" type="text" placeholder="Enter student UUID" required>
+                            </label>
+                            <label>
+                                <span>Verifier ID</span>
+                                <input name="verifier_id" type="text" placeholder="Enter verifier ID" required>
+                            </label>
+                            <button type="submit">Check Integrity</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel panel-results">
+                <div class="panel-heading panel-heading-results">
+                    <div>
+                        <p class="eyebrow">Live Response</p>
+                        <h2>Verification Output</h2>
+                    </div>
+                    <p class="panel-intro">
+                        Each response includes status, explanation, and the proof payload returned by the backend.
+                    </p>
+                </div>
+
+                <div class="result-empty" id="result-empty">
+                    <div class="empty-copy">
+                        <p class="empty-title">No verification executed yet</p>
+                        <p>Choose any workflow on the left to inspect the live API response here.</p>
+                    </div>
+                </div>
+
+                <article class="result-card hidden" id="result-card">
+                    <div class="result-topline">
+                        <div>
+                            <p class="result-label">Operation</p>
+                            <h3 id="result-title">Verification Result</h3>
+                        </div>
+                        <span class="status-badge" id="status-badge">PENDING</span>
+                    </div>
+
+                    <p class="result-message" id="result-message"></p>
+                    <div class="result-grid" id="result-grid"></div>
+
+                    <div class="payload-block">
+                        <div class="payload-heading">
+                            <p class="result-label">Raw JSON</p>
+                            <button class="ghost-button" id="copy-json" type="button">Copy JSON</button>
+                        </div>
+                        <pre id="result-json"></pre>
+                    </div>
+                </article>
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
